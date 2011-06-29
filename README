@@ -1,0 +1,34 @@
+As an organizer of a Meetup, I frequently have to supply a list of attendess to building security.  
+There is no menu choice on a Meetup for this, so I wrote this program to:
+
+-   find the next Meetup,
+-   fetch all the "YES" RSVP responses
+-   upload the attendess's first and last names to Google Docs spreadsheet
+-   share the spreadsheet with, for example, building security, a co-organizer, etc.
+
+
+Reuqired Modules
+------------------
+A minimum of Python 2.6.
+
+Google GDATA Python Client - http://code.google.com/p/gdata-python-client/
+
+httplib2 - http://code.google.com/p/httplib2
+
+Joe Gregorio's remarkable module that takes the pain out of HTTP.  This will
+be required by the Googel GDATA Python client from version 3.0 onward.
+
+Installation
+-------------
+Place get_meetup_rsvp.py and settings.py in the same directory.
+
+Execution
+----------
+Update the values in settings.py so that they are specific to you and your group.
+
+python ./get_meetup_rsvp.py
+
+Notes
+-------
+This version is written to be run from the command line.  In future, I'll modify it 
+so that it can be run as a cron job with and audit log.
