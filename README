@@ -26,9 +26,25 @@ Execution
 ----------
 Update the values in settings.py so that they are specific to you and your group.
 
-python ./get_meetup_rsvp.py
+Usage: python get_meetup_rsvp.py [-inv]
+
+Options:
+  -h, --help            show this help message and exit
+  -i EVENTID, --event-id=EVENTID
+                        Use this event id and do not attempt to find the next
+                        one automatically on Meetup.
+  -v, --version         Print version.
+  -n, --skip-name-filtering
+                        Ignore name filtering rules.
+
 
 Notes
 -------
 This version is written to be run from the command line.  In future, I'll modify it 
 so that it can be run as a cron job with and audit log.
+
+Version 1.1
+    - Supports UTF-8
+    - -i to specify eventid on command line
+    - -n to skip name filtering
+    - refactoring of some code
