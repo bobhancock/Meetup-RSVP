@@ -37,7 +37,7 @@ except ImportError as e:
     sys.exit(1)
     
 __author__ = "hancock.robert@gmail.com"
-__version__ = "1.1"
+__version__ = "1.2"
 
 class HTTPError(Exception):
     def __init__(self, value):
@@ -91,6 +91,7 @@ class RSVP():
         self.names = []
         self.tempfile = None
         self.tempfile_name = os.path.join(os.getcwd(), str(int(time.time()))) + ".csv"
+        self.name_errors = os.path.join(os.getcwd(), str(int(time.time()))) + ".err"
         self.filternames = filternames
         self.trans = list(string.punctuation) # for unicode cleaning
         
@@ -133,6 +134,9 @@ class RSVP():
         
         Encode everything to UTF-8.
         """
+        if self.filternames:
+            err_out = codecs.open(self.name_errors, mode="w", encoding="utf-8")
+            
         results = self.json_rsvps["results"]
         
         for line in results:
@@ -148,7 +152,7 @@ class RSVP():
             name = self._clean_unicode(name)
             if self.filternames:
                 if len(name) < 4:
-                    sys.stderr.write("Removed: '{f}' - invalid full name.\n".format(f=name))
+                    err_out.write("Removed: '"+name+"' - invalid full name.\n")
                     continue
                 
                 name_components = name.strip().strip(',').split()
@@ -156,25 +160,24 @@ class RSVP():
                     continue
                 
                 if len(name_components) < 2:
-                    sys.stderr.write("Removed: '{f}' - invalid full name.\n".format(f=name))
+                    err_out.write("Removed: '"+name+"' - invalid full name.\n")
                     continue
                                 
                 fname = lname = ""
                 
                 fname = name_components[0]
                 if len(fname) == 1:
-                    sys.stderr.write("Removed: '{f}' - first name cannot be one letter.\n".format(f=name))
+                    err_out.write("Removed: '"+name+"' - first name cannot be one letter.\n")
                     continue
                 
                 fname = fname[0].upper()+fname[1:]
-                #lname = " ".join(name_components[2:])
                 lname = " ".join(name_components[1:])
                 
                 if lname:
                     # The last name cannot be one letter.
                     lname = lname[0].upper()+lname[1:]
                     if len(lname) == 1:
-                        sys.stderr.write("Removed: '{l}' last name cannot be one letter.\n".format(l=name))
+                        err_out.write("Removed: '"+name+"' last name cannot be one letter.\n")
                         continue
                     
                 self.names.append((fname,lname))
@@ -186,7 +189,10 @@ class RSVP():
         else:
             self.names.sort()
     
-    
+        if not err_out.closed:
+            err_out.close()
+        
+        
     def write_to_file(self):
         """ Write the list of names to a CSV file. """
 
@@ -194,7 +200,6 @@ class RSVP():
         
         for entry in self.names:
             fname, lname = entry
-
             self.tempfile.write(fname+","+lname+"\n")
         
         self.tempfile.close()

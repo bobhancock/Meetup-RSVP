@@ -48,3 +48,6 @@ Version 1.1
     - -i to specify eventid on command line
     - -n to skip name filtering
     - refactoring of some code
+    
+Version 1.2
+    - Name errors are written to a file instead of stdout.
