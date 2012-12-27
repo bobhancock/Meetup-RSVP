@@ -9,7 +9,7 @@ There is no menu choice on a Meetup for this, so I wrote this program to:
 
 Reuqired Modules
 ------------------
-A minimum of Python 2.6.
+A minimum of Python 2.7.
 
 Google Drive Python SDK - https://developers.google.com/drive/
 
