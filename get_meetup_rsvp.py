@@ -1,8 +1,6 @@
 """
-Retrieve the "yes" is for a specific Meetup id.
-Get first and last name.
-Filter out last names that are only one letter.
-Write to a Google Docs spreadsheet.
+Retrieve the "yes" entries for a specific Meetup id.
+Write the names to a Google Drive spreadsheet.
 """
 import os.path
 import sys
@@ -15,10 +13,10 @@ import optparse
 import codecs
 import webbrowser
 from datetime import datetime
-import mechanize
-#import twill.commands as twillcmd
 from apiclient import errors
+import requests as req
 
+#import mechanize
 
 if sys.version[0:3] != "2.7":
     print("The Google API client requires Python 2.7.x.")
@@ -36,6 +34,12 @@ except ImportError as e:
     sys.stderr.write("You need to install httplib2.  You can get it at http://code.google.com/p/httplib2/")
     sys.exit(1)
 
+try:    
+    import requests
+except ImportError as e:
+    sys.stderr.write("You need to install requests.  See http://docs.python-requests.org/en/latest/user/install/#install")
+    sys.exit(1)
+
 from apiclient.discovery import build
 from apiclient.http import MediaFileUpload
 from oauth2client.client import OAuth2WebServerFlow
@@ -44,44 +48,32 @@ from oauth2client.client import OAuth2WebServerFlow
 __author__ = "hancock.robert@gmail.com"
 __version__ = "1.2"
 
+
 class HTTPError(Exception):
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return repr("HTTPError: "+self.value)
 
-    
-class MeetupEvent():
-    """ Meetup event class.
-    
-    args
-        group_url_name     The group name from the Meetup URL.
-    """
-    def __init__(self, group_url_name):
-        self.group_url_name = group_url_name
         
-    def get_next_event(self):
-        """ Get the next event, from today, in this group.
-
-        return
-            event id as a string
-        """
-        h = httplib2.Http(".cache")
-        get_events_uri = "{u}?key={k}&sign=true&status=upcoming&group_urlname={i}".format(u=settings.MEETUP_EVENTS_URI,
-                                                                                          k=settings.API_KEY,
-                                                                                          i=self.group_url_name)
-
-        resp, content = h.request(get_events_uri, "GET")
-
-        status = resp["status"]
-        if status != "200":
-            raise HTTPError('HTTP status code: {s}'.format(s=status))
-
-        self.json_events = json.loads(content)
+def get_next_eventid():
+    """ Get the next event, from today, in this group.
     
-        event_url =  self.json_events["results"][0]["event_url"]
-        components = event_url.split('/')
-        return components[-2]
+    Returns
+        event id as a string
+    """
+    get_events_uri = "{u}?key={k}&sign=true&status=upcoming&group_urlname={i}".format(u=settings.MEETUP_EVENTS_URI,
+                                                                                      k=settings.API_KEY,
+                                                                                      i=settings.GROUP_URLNAME)
+    resp = req.get(get_events_uri)
+    if resp.status_code != 200:
+        raise HTTPError("Status code={c}".format(c=resp.status_code))
+    
+    j = resp.json()
+    event_url =  j["results"][0]["event_url"]
+    components = event_url.split('/')
+    
+    return components[-2]
     
         
 class RSVP():
@@ -91,14 +83,15 @@ class RSVP():
         event_id   The unique id that Meetup uses to identify this event.
     
     """
-    def __init__(self, event_id, filternames=True):
+    def __init__(self, event_id, strict_names=False):
         self.event_id = event_id
         self.json_rsvps = {}
         self.names = []
         self.tempfile = None
         self.tempfile_name = os.path.join(os.getcwd(), str(int(time.time()))) + ".csv"
-        self.filternames = filternames
+        self.strict_names = strict_names
         self.trans = list(string.punctuation) # for unicode cleaning
+        
         
     def download(self):
         """
@@ -108,16 +101,12 @@ class RSVP():
            a dictionary of the json contents
         """
 
-        h = httplib2.Http(".cache")
         get_rsvps_uri = "{u}?key={k}&sign=true&event_id={i}".format(u=settings.MEETUP_RSVPS_URI, k=settings.API_KEY, i=self.event_id)
+        resp = req.get(get_rsvps_uri)
+        if resp.status_code != 200:
+            raise HTTPError('Status code={c}'.format(c=resp.status_code))
 
-        resp, content = h.request(get_rsvps_uri, "GET")
-
-        status = resp["status"]
-        if status != "200":
-            raise HTTPError('HTTP status code: {s}'.format(s=status))
-
-        self.json_rsvps = json.loads(content)
+        self.json_rsvps = resp.json()
 
         
     def get_names(self):
@@ -126,7 +115,7 @@ class RSVP():
         list, the instance variable self.names, sorted by last name.
         
         Since these are likely to be printed on small badges we ignore middle initials
-        and concentate on last names t consist of more than one word or have titles 
+        and concentate on last names that consist of more than one word or have titles 
         after them.
         
         Bilbo B. Baggins, Esq.
@@ -153,52 +142,46 @@ class RSVP():
             name = unicode(line["member"]["name"])
             name = self._clean_unicode(name)
 
-            #if len(name) < 4:
-                #sys.stderr.write("Removed: '{f}' - invalid full name.\n".format(f=name))
-                #continue
+            if self.strict_names:
+                if len(name) < 4:
+                    sys.stderr.write("Removed: '{f}' - invalid full name.\n".format(f=name))
+                    continue
             
             name_components = name.strip().strip(',').split()
             if not name_components:
                 continue
             
-            #if len(name_components) < 2:
-                #sys.stderr.write("Removed: '{f}' - invalid full name.\n".format(f=name))
-                #continue
+            if self.strict_names and len(name_components) < 2:
+                    sys.stderr.write("Removed: '{f}' - invalid full name.\n".format(f=name))
+                    continue
                             
             fname = lname = ""
             
             fname = name_components[0]
-            #if len(fname) == 1:
-                #sys.stderr.write("Removed: '{f}' - first name cannot be one letter.\n".format(f=name))
-                #continue
+            if self.strict_names and len(fname) == 1:
+                    sys.stderr.write("Removed: '{f}' - first name cannot be one letter.\n".format(f=name))
+                    continue
             
             fname = fname[0].upper()+fname[1:]
-            #lname = " ".join(name_components[2:])
             lname = " ".join(name_components[1:])
             
             if lname:
-                # The last name cannot be one letter.
                 lname = lname[0].upper()+lname[1:]
-                #if len(lname) == 1:
-                    #sys.stderr.write("Removed: '{l}' last name cannot be one letter.\n".format(l=name))
-                    #continue
+                if self.strict_names and len(lname) == 1:
+                        sys.stderr.write("Removed: '{l}' last name cannot be one letter.\n".format(l=name))
+                        continue
                 
             self.names.append((fname,lname))
-
             
         self.names = sorted(self.names, key=operator.itemgetter(1))
+
     
     def write_to_file(self):
         """ Write the list of names to a CSV file. """
-
-        self.tempfile = codecs.open(self.tempfile_name, mode="w", encoding="utf-8")
-        
-        for entry in self.names:
-            fname, lname = entry
-
-            self.tempfile.write(fname+","+lname+"\n")
-        
-        self.tempfile.close()
+        with codecs.open(self.tempfile_name, mode="w", encoding="utf-8") as self.tempfile:
+            for entry in self.names:
+                fname, lname = entry
+                self.tempfile.write(fname+","+lname+"\n")
         
         
     def _clean_unicode(self, s):
@@ -212,7 +195,10 @@ class RSVP():
                     s = s[:i] + s[i+1:]
         return s
  
+ 
 def get_oauth_creds():
+    """OAuth credentials to access the Google Driver service.
+    """
     flow = OAuth2WebServerFlow(settings.CLIENT_ID, settings.CLIENT_SECRET, 
                                settings.OAUTH_SCOPE, settings.REDIRECT_URI)
     authorize_url = flow.step1_get_authorize_url()
@@ -238,7 +224,7 @@ def get_oauth_creds():
     return creds
 
   	    
-def upload(creds, fname, title):
+def upload_csv(creds, fname, title):
     """Upload csv file to Drive spreadsheet. """
 
     drive_service = build('drive', 'v2', http=creds)
@@ -256,19 +242,13 @@ def upload(creds, fname, title):
     return (drive_service, f)
 
 
-
 def add_collaborators(service, file_id):
-    """Insert a new permission.
+    """Add colloborators to the spreadsheet.
     
     Args:
     service: Drive API service instance.
-    file_id: ID of the file to insert permission for.
-    value: User or group e-mail address, domain name or None for 'default'
-    type.
-    perm_type: The value 'user', 'group', 'domain' or 'default'.
-    role: The value 'owner', 'writer' or 'reader'.
-    Returns:
-    The inserted permission if successful, None otherwise.
+    file_id: ID of the file to which you want to add collaborators.
+    
     """
     for email, role in settings.COLLABORATORS.iteritems():
         new_permission = {
@@ -281,10 +261,8 @@ def add_collaborators(service, file_id):
             service.permissions().insert(fileId=file_id, 
                                          body=new_permission).execute()
         except errors.HttpError, error:
-            print('An error occurred: %s' % error)
-            
-    return None
-
+            raise("HTTP Error: %s" % error)
+    
     
 def main():
     usage = "%prog [-inv]"
@@ -295,47 +273,58 @@ def main():
     parser.add_option("-v", "--version",
                       action="store_true", dest="version",
                       help="Print version.")
-    parser.add_option("-n", "--skip-name-filtering",
-                      action="store_true", dest="skip_name_filtering",
-                      help="Ignore name filtering rules.")
+    parser.add_option("-n", "--strict-name-filtering",
+                      action="store_true", dest="strict_name_filtering",
+                      help="Use strict name filtering rules.")
     
     [options, args] = parser.parse_args()
     if options.version:
         print("Version: {v}".format(v=__version__))
         return 0
     
+    use_strict_names = True if options.strict_name_filtering else False
+    
     if not options.eventid:
-        m = MeetupEvent(settings.GROUP_URLNAME)
-        event_id = m.get_next_event()
+        try:
+            event_id = get_next_eventid()
+        except HTTPError as e:
+            print("Error obtaining next event id from Meetup: %s" % e)
+            sys.exit(1)
     else:
         event_id = options.eventid
         
-    filter_names = False if options.skip_name_filtering else True
-    rsvp = RSVP(event_id, filternames=filter_names)
+    
+    # Get the YES responses from Meetup and filter.
+    rsvp = RSVP(event_id, strict_names=use_strict_names)
     try:
         rsvp.download()
-    except Exception as e:
+    except HTTPError as e:
         sys.stderr.write("Cannot download event {i}: {e}".format(i=event_id, e=e))
-        sys.exit(-1)
+        sys.exit(1)
         
     rsvp.get_names()
     if not rsvp.names:
         sys.stderr.write("No names were found for event id {ei}.".format(ei=event_id))
-        sys.exit()
+        sys.exit(-1)
         
     rsvp.write_to_file()
     
+    # This is the text that will appear in the Google Drive as the spreadsheet name.
     title = "{g}-RSVP--eventid-{id}-creation-{t}".format(g=settings.GROUP_URLNAME, 
                                   id=event_id, t=str(datetime.now()).replace(" ", "_"))
 
+    # Upload csv file to a Google Drive spreadsheet.
     oauthtcreds = get_oauth_creds()
-    drive_service, f = upload(oauthtcreds, rsvp.tempfile_name, title)
-    add_collaborators(drive_service, f["id"])
-    
+    drive_service, f = upload_csv(oauthtcreds, rsvp.tempfile_name, title)
     if os.path.isfile(rsvp.tempfile_name):
         os.remove(rsvp.tempfile_name)
-        
-    print("Created spreadsheet at {u}".format(u=f["alternateLink"]))
+
+    retval = add_collaborators(drive_service, f["id"])
+    if retval:
+        print(retval)
+    else:
+        print("Created spreadsheet at {u}".format(u=f["alternateLink"]))
+    
     
 if __name__ == "__main__":
     main()
