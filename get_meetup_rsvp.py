@@ -319,11 +319,14 @@ def main():
     if os.path.isfile(rsvp.tempfile_name):
         os.remove(rsvp.tempfile_name)
 
-    retval = add_collaborators(drive_service, f["id"])
-    if retval:
-        print(retval)
-    else:
-        print("Created spreadsheet at {u}".format(u=f["alternateLink"]))
+    if settings.COLLABORATORS:
+        try:
+            add_collaborators(drive_service, f["id"])
+        except HTTPError as e:
+            print("Error while adding collaborators:{e}".format(e=e))
+            sys.exit()
+            
+    print("Created spreadsheet at {u}".format(u=f["alternateLink"]))
     
     
 if __name__ == "__main__":
