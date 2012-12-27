@@ -1,9 +1,9 @@
-As an organizer of a Meetup, I frequently have to supply a list of attendess to building security.  
+As an organizer of a Meetup, I frequently have to supply a list of attendees to building security.  
 There is no menu choice on a Meetup for this, so I wrote this program to:
 
 -   find the next Meetup,
 -   fetch all the "YES" RSVP responses
--   upload the attendess's first and last names to Google Docs spreadsheet
+-   upload the attendess's first and last names to a Google Docs spreadsheet
 -   share the spreadsheet with, for example, building security, a co-organizer, etc.
 
 
@@ -11,43 +11,21 @@ Reuqired Modules
 ------------------
 A minimum of Python 2.6.
 
-Google GDATA Python Client - http://code.google.com/p/gdata-python-client/
-
-httplib2 - http://code.google.com/p/httplib2
-
-Joe Gregorio's remarkable module that takes the pain out of HTTP.  This will
-be required by the Googel GDATA Python client from version 3.0 onward.
+Google Drive Python SDK - https://developers.google.com/drive/
 
 Installation
 -------------
+Install the Google Drive SDK.
+
 Place get_meetup_rsvp.py and settings.py in the same directory.
 
 Execution
 ----------
 Update the values in settings.py so that they are specific to you and your group.
 
-Usage: python get_meetup_rsvp.py [-inv]
-
-Options:
-  -h, --help            show this help message and exit
-  -i EVENTID, --event-id=EVENTID
-                        Use this event id and do not attempt to find the next
-                        one automatically on Meetup.
-  -v, --version         Print version.
-  -n, --skip-name-filtering
-                        Ignore name filtering rules.
-
+python ./get_meetup_rsvp.py
 
 Notes
 -------
-This version is written to be run from the command line.  In future, I'll modify it 
-so that it can be run as a cron job with and audit log.
-
-Version 1.1
-    - Supports UTF-8
-    - -i to specify eventid on command line
-    - -n to skip name filtering
-    - refactoring of some code
-    
-Version 1.2
-    - Name errors are written to a file instead of stdout.
+This version is written to be run from the command line.  The current OAuth2 mechanism
+requires human interaction. I'll try to use mechanize to automate this portion.

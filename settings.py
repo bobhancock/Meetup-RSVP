@@ -3,24 +3,24 @@ MEETUP_API_URI="https://api.meetup.com/2/"
 MEETUP_EVENTS_URI="{m}events/".format(m=MEETUP_API_URI)
 MEETUP_RSVPS_URI="{m}rsvps/".format(m=MEETUP_API_URI)
 
-# GDATA / Docs List
-# This is the Google recommended chunk size.  
-CHUNK_SIZE = 10485760
-
-#====== Specific to you and your event ================
+#====== Meetup API ================
 # The group name that appears in the Meetup URL.
-# For example, http://www.meetup.com/NYC-GTUG/
-GROUP_URLNAME="your_meetup_url_name"
+# For example, http://www.meetup.com/NYC-GDG/
+GROUP_URLNAME="NYC-GDG"
 
 # You must obtain a Meetup API key. http://www.meetup.com/meetup_api/ 
-API_KEY="your_key"
+API_KEY="195e6770593a5547b1ab626313332e"
 
-# Your Google email and password for client authentication
-EMAIL="your_email!@gmail.com"
-PASSWORD="your_password"
+#=========== Google Drive API ============
+CLIENT_ID = "823637210521.apps.googleusercontent.com"
+CLIENT_SECRET = "jAgw_nx1jk9KhdsuuEikXegx"
+# Redirect URI for installed apps
+REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
+
+# Check https://developers.google.com/drive/scopes for all available scopes
+OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive'
 
 # A dictionary of people with whom you want to share the spreadsheet.
-# A dictionary is a Python key:value structure, and in this case the key is
-# the recipients Google email and the value is a string that indicate their
-# collaboration role.  Either "reader" or "writer".
-COLLABORATORS = {"bilbo.baggins@gmail.com":"writer", "someone@gmail.com":"reader"}
+# key is the collaborator's Google email
+# value is 'owner', 'writer' or 'reader'
+COLLABORATORS = {"hancock.robert.test@gmail.com":"writer"}

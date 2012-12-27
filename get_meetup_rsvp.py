@@ -1,5 +1,5 @@
 """
-Retrieve the "yes" rsvps for a specific Meetup id.
+Retrieve the "yes" is for a specific Meetup id.
 Get first and last name.
 Filter out last names that are only one letter.
 Write to a Google Docs spreadsheet.
@@ -13,21 +13,21 @@ import string
 import pprint
 import optparse
 import codecs
+import webbrowser
+from datetime import datetime
+import mechanize
+#import twill.commands as twillcmd
+from apiclient import errors
 
+
+if sys.version[0:3] != "2.7":
+    print("The Google API client requires Python 2.7.x.")
+    sys.exit(-1)
+    
 try:
     import settings
 except ImportError:
     sys.stderr.write("You need to have settings.py in the same directory as this file.")
-    sys.exit(1)
-
-try:
-    import atom.data
-    import gdata.client
-    import gdata.docs.client
-    import gdata.docs.data
-    import gdata.acl.data
-except ImportError as e:
-    sys.stderr.write("Failed to import the gdata client library: {ex}".format(ex=e))
     sys.exit(1)
 
 try:    
@@ -35,6 +35,11 @@ try:
 except ImportError as e:
     sys.stderr.write("You need to install httplib2.  You can get it at http://code.google.com/p/httplib2/")
     sys.exit(1)
+
+from apiclient.discovery import build
+from apiclient.http import MediaFileUpload
+from oauth2client.client import OAuth2WebServerFlow
+
     
 __author__ = "hancock.robert@gmail.com"
 __version__ = "1.2"
@@ -50,7 +55,7 @@ class MeetupEvent():
     """ Meetup event class.
     
     args
-        group_url_name     The group name from the Meetup URL>
+        group_url_name     The group name from the Meetup URL.
     """
     def __init__(self, group_url_name):
         self.group_url_name = group_url_name
@@ -63,7 +68,8 @@ class MeetupEvent():
         """
         h = httplib2.Http(".cache")
         get_events_uri = "{u}?key={k}&sign=true&status=upcoming&group_urlname={i}".format(u=settings.MEETUP_EVENTS_URI,
-                                                                                          k=settings.API_KEY, i=self.group_url_name)
+                                                                                          k=settings.API_KEY,
+                                                                                          i=self.group_url_name)
 
         resp, content = h.request(get_events_uri, "GET")
 
@@ -91,7 +97,6 @@ class RSVP():
         self.names = []
         self.tempfile = None
         self.tempfile_name = os.path.join(os.getcwd(), str(int(time.time()))) + ".csv"
-        self.name_errors = os.path.join(os.getcwd(), str(int(time.time()))) + ".err"
         self.filternames = filternames
         self.trans = list(string.punctuation) # for unicode cleaning
         
@@ -121,7 +126,7 @@ class RSVP():
         list, the instance variable self.names, sorted by last name.
         
         Since these are likely to be printed on small badges we ignore middle initials
-        and concentate last names which consist of more than one word or have titles 
+        and concentate on last names t consist of more than one word or have titles 
         after them.
         
         Bilbo B. Baggins, Esq.
@@ -134,9 +139,6 @@ class RSVP():
         
         Encode everything to UTF-8.
         """
-        if self.filternames:
-            err_out = codecs.open(self.name_errors, mode="w", encoding="utf-8")
-            
         results = self.json_rsvps["results"]
         
         for line in results:
@@ -150,49 +152,42 @@ class RSVP():
             
             name = unicode(line["member"]["name"])
             name = self._clean_unicode(name)
-            if self.filternames:
-                if len(name) < 4:
-                    err_out.write("Removed: '"+name+"' - invalid full name.\n")
-                    continue
-                
-                name_components = name.strip().strip(',').split()
-                if not name_components:
-                    continue
-                
-                if len(name_components) < 2:
-                    err_out.write("Removed: '"+name+"' - invalid full name.\n")
-                    continue
-                                
-                fname = lname = ""
-                
-                fname = name_components[0]
-                if len(fname) == 1:
-                    err_out.write("Removed: '"+name+"' - first name cannot be one letter.\n")
-                    continue
-                
-                fname = fname[0].upper()+fname[1:]
-                lname = " ".join(name_components[1:])
-                
-                if lname:
-                    # The last name cannot be one letter.
-                    lname = lname[0].upper()+lname[1:]
-                    if len(lname) == 1:
-                        err_out.write("Removed: '"+name+"' last name cannot be one letter.\n")
-                        continue
-                    
-                self.names.append((fname,lname))
-            else:
-                self.names.append((name,""))
+
+            #if len(name) < 4:
+                #sys.stderr.write("Removed: '{f}' - invalid full name.\n".format(f=name))
+                #continue
             
-        if self.filternames:
-            self.names = sorted(self.names, key=operator.itemgetter(1))
-        else:
-            self.names.sort()
+            name_components = name.strip().strip(',').split()
+            if not name_components:
+                continue
+            
+            #if len(name_components) < 2:
+                #sys.stderr.write("Removed: '{f}' - invalid full name.\n".format(f=name))
+                #continue
+                            
+            fname = lname = ""
+            
+            fname = name_components[0]
+            #if len(fname) == 1:
+                #sys.stderr.write("Removed: '{f}' - first name cannot be one letter.\n".format(f=name))
+                #continue
+            
+            fname = fname[0].upper()+fname[1:]
+            #lname = " ".join(name_components[2:])
+            lname = " ".join(name_components[1:])
+            
+            if lname:
+                # The last name cannot be one letter.
+                lname = lname[0].upper()+lname[1:]
+                #if len(lname) == 1:
+                    #sys.stderr.write("Removed: '{l}' last name cannot be one letter.\n".format(l=name))
+                    #continue
+                
+            self.names.append((fname,lname))
+
+            
+        self.names = sorted(self.names, key=operator.itemgetter(1))
     
-        if not err_out.closed:
-            err_out.close()
-        
-        
     def write_to_file(self):
         """ Write the list of names to a CSV file. """
 
@@ -200,6 +195,7 @@ class RSVP():
         
         for entry in self.names:
             fname, lname = entry
+
             self.tempfile.write(fname+","+lname+"\n")
         
         self.tempfile.close()
@@ -216,38 +212,79 @@ class RSVP():
                     s = s[:i] + s[i+1:]
         return s
  
-        
-class Spreadsheet():
-    """ Upload CSV file to a Google Docs spreadsheet. 
+def get_oauth_creds():
+    flow = OAuth2WebServerFlow(settings.CLIENT_ID, settings.CLIENT_SECRET, 
+                               settings.OAUTH_SCOPE, settings.REDIRECT_URI)
+    authorize_url = flow.step1_get_authorize_url()
+    #TODO:  mechanize
+    #br = mechanize.Browser()
+    #br.open(authorize_url)
+    #br.select_form(nr=0)
+    #resp = br.submit()
     
-    args
-        title    The name of the spreadsheet in Google Docs.
-        fil      The fully qualified path name of the source CSV file.
+    #  req = br.click(id="submit_approve_access", name="true", type="submit", nr=0)
+    # br.open(req)        
+    #        resp = br.submit()
+    #       data = resp.get_data()
+    
+    # web browser verson
+    webbrowser.open_new_tab(authorize_url)
+    code = raw_input('Enter verification code: ').strip()
+    credentials = flow.step2_exchange(code)
+    
+    # Create an httplib2.Http object and authorize it with our credentials
+    http = httplib2.Http()
+    creds = credentials.authorize(http)
+    return creds
+
+  	    
+def upload(creds, fname, title):
+    """Upload csv file to Drive spreadsheet. """
+
+    drive_service = build('drive', 'v2', http=creds)
+    
+    media_body = MediaFileUpload(fname, mimetype='text/csv', resumable=True)
+    body = {
+        'title': title,
+        'description': 'GDG RSVP LIST',
+        'mimeType': 'text/csv'
+    }
+    
+    f = drive_service.files().insert(body=body, media_body=media_body, 
+                                     convert=True).execute() 
+    
+    return (drive_service, f)
+
+
+
+def add_collaborators(service, file_id):
+    """Insert a new permission.
+    
+    Args:
+    service: Drive API service instance.
+    file_id: ID of the file to insert permission for.
+    value: User or group e-mail address, domain name or None for 'default'
+    type.
+    perm_type: The value 'user', 'group', 'domain' or 'default'.
+    role: The value 'owner', 'writer' or 'reader'.
+    Returns:
+    The inserted permission if successful, None otherwise.
     """
-    def __init__(self, title, fil):
-        self.fil = fil
-        self.title = title
-        self.client = ""
-        self.entry = ""
-        
-    def upload(self):
-        self.client = gdata.docs.client.DocsClient(source=self.title)
-        self.client.ClientLogin(settings.EMAIL, settings.PASSWORD, self.client.source)
-        
-        # If this fails, let the exception bubble up
-        self.entry = self.client.Upload(self.fil, self.title, content_type='text/csv')        
-        
-
-    def share(self):
-        """ Share your spreadsheet with other Google Doc users. """
-        for email, role_value in settings.COLLABORATORS.iteritems():
-            scope = gdata.acl.data.AclScope(value=email, type='user')
-            role = gdata.acl.data.AclRole(value=role_value)
-            acl_entry = gdata.docs.data.Acl(scope=scope, role=role)
-
-            new_acl = self.client.Post(acl_entry, self.entry.GetAclFeedLink().href)
-            #print "%s %s added as a %s" % (new_acl.scope.type, new_acl.scope.value, new_acl.role.value)
+    for email, role in settings.COLLABORATORS.iteritems():
+        new_permission = {
+            'value': email,
+            'type': "user",
+            'role': role
+        }
     
+        try:
+            service.permissions().insert(fileId=file_id, 
+                                         body=new_permission).execute()
+        except errors.HttpError, error:
+            print('An error occurred: %s' % error)
+            
+    return None
+
     
 def main():
     usage = "%prog [-inv]"
@@ -284,27 +321,21 @@ def main():
     rsvp.get_names()
     if not rsvp.names:
         sys.stderr.write("No names were found for event id {ei}.".format(ei=event_id))
-        sys.exti()
+        sys.exit()
         
-    #print("{n} names".format(n=len(rsvp.names)))
     rsvp.write_to_file()
     
-    title = "{g}-{id}-{t}".format(g=settings.GROUP_URLNAME, 
-                                  id=event_id, t=str(time.time()))
-    s = Spreadsheet(title, rsvp.tempfile_name)
-    try:
-        s.upload()       
-    except Exception as e:
-        sys.stderr.write("Could not create Google docs spreadsheet: {e}".format(e=e))
-        sys.exit()
+    title = "{g}-RSVP--eventid-{id}-creation-{t}".format(g=settings.GROUP_URLNAME, 
+                                  id=event_id, t=str(datetime.now()).replace(" ", "_"))
 
-    try:
-        s.share()
-    except Exception as e:
-        sys.stderr.write("Could not share spreadsheet: {e}".format(e=e))
-        sys.exit()
+    oauthtcreds = get_oauth_creds()
+    drive_service, f = upload(oauthtcreds, rsvp.tempfile_name, title)
+    add_collaborators(drive_service, f["id"])
     
-    os.remove(rsvp.tempfile_name)
+    if os.path.isfile(rsvp.tempfile_name):
+        os.remove(rsvp.tempfile_name)
+        
+    print("Created spreadsheet at {u}".format(u=f["alternateLink"]))
     
 if __name__ == "__main__":
     main()
