@@ -9,15 +9,15 @@ MEETUP_RSVPS_URI="{m}rsvps/".format(m=MEETUP_API_URI)
 GROUP_URLNAME="NYC-GDG"
 
 # You must obtain a Meetup API key. http://www.meetup.com/meetup_api/ 
-API_KEY="195e6770593a5547b1ab626313332e" #browser
+API_KEY="your api key" #browser
 
 
 #=========== Google Drive API ============
 #GOOGEL_SERVER_API_KEY="AIzaSyB6sBKzf5f3s0SeJZzUK-Se-QLkUBubnTw"
-CLIENT_ID = "823637210521.apps.googleusercontent.com"
-CLIENT_SECRET = "jAgw_nx1jk9KhdsuuEikXegx"
+CLIENT_ID = "you Google API client id"
+CLIENT_SECRET = "your Google API client secret"
 # Redirect URI for installed apps
-REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
+REDIRECT_URI = 'redirect uri'
 
 # Check https://developers.google.com/drive/scopes for all available scopes
 OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive'
