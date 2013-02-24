@@ -16,8 +16,6 @@ from datetime import datetime
 from apiclient import errors
 import requests as req
 
-#import mechanize
-
 if sys.version[0:3] != "2.7":
     print("The Google API client requires Python 2.7.x.")
     sys.exit(-1)
@@ -202,17 +200,9 @@ def get_oauth_creds():
     flow = OAuth2WebServerFlow(settings.CLIENT_ID, settings.CLIENT_SECRET, 
                                settings.OAUTH_SCOPE, settings.REDIRECT_URI)
     authorize_url = flow.step1_get_authorize_url()
-    #TODO:  mechanize
-    #br = mechanize.Browser()
-    #br.open(authorize_url)
-    #br.select_form(nr=0)
-    #resp = br.submit()
     
-    #  req = br.click(id="submit_approve_access", name="true", type="submit", nr=0)
-    # br.open(req)        
-    #        resp = br.submit()
-    #       data = resp.get_data()
-    
+    r = req.get(authorize_url)
+    print(req)
     # web browser verson
     webbrowser.open_new_tab(authorize_url)
     code = raw_input('Enter verification code: ').strip()
